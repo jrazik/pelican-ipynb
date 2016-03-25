@@ -72,6 +72,7 @@ LATEX_CUSTOM_SCRIPT = """
 
 def get_html_from_filepath(filepath):
     """Convert ipython notebook to html
+    And filter stderr to avoid warning and errors in the output
     Return: html content of the converted notebook
     """
     config = Config({'CSSHTMLHeaderTransformer': {'enabled': True,
@@ -82,10 +83,12 @@ def get_html_from_filepath(filepath):
     content, info = exporter.from_filename(filepath)
 
     if BeautifulSoup:
-        soup = BeautifulSoup(content,"html.parser")
-        for i in soup.findAll("div", {"class" : "input"}):
+        soup = BeautifulSoup(content, "html.parser")
+        for i in soup.findAll("div", {"class": "input"}):
             if i.findChildren()[1].find(text='#ignore') is not None:
                 i.extract()
+        for i in soup.findAll('div', {'class': 'output_stderr'}):
+            i.extract()
         content = soup
 
     return content, info

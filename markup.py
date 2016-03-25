@@ -11,9 +11,11 @@ except ImportError:
     from HTMLParser import HTMLParser
 
 from pelican import signals
-from pelican.readers import MarkdownReader, HTMLReader, BaseReader
+from pelican.readers import MarkdownReader, HTMLReader, BaseReader, RstReader
 
 from .ipynb import get_html_from_filepath, fix_css
+
+from pelican.utils import SafeDatetime
 
 
 def register():
@@ -51,9 +53,13 @@ class IPythonNB(BaseReader):
         metadata_filepath = os.path.join(filedir, metadata_filename)
 
         if os.path.exists(metadata_filepath):
-            # Metadata is on a external file, process using Pelican MD Reader
-            md_reader = MarkdownReader(self.settings)
-            _content, metadata = md_reader.read(metadata_filepath)
+            # I prefer RST style like my other regular files
+            # # Metadata is on a external file, process using Pelican MD Reader
+            # md_reader = MarkdownReader(self.settings)
+            # _content, metadata = md_reader.read(metadata_filepath)
+            # Metadata is on a external file, process using Pelican RST Reader
+            rst_reader = RstReader(self.settings)
+            _content, metadata = rst_reader.read(metadata_filepath)
         else:
             # Load metadata from ipython notebook file
             ipynb_file = open(filepath)
@@ -66,6 +72,13 @@ class IPythonNB(BaseReader):
                     metadata[key] = self.process_metadata(key, value)
 
         keys = [k.lower() for k in metadata.keys()]
+
+        if 'date' not in keys:
+            # if the meta date is not set, take the file create time
+            metadata['date'] = SafeDatetime.fromtimestamp(
+                os.stat(metadata_filepath).st_ctime)
+            keys.append('date')
+
         if not set(['title', 'date', 'slug']).issubset(set(keys)):
             # Probably using ipynb.liquid mode
             md_filename = filename.split('.')[0] + '.md'
@@ -82,12 +95,15 @@ class IPythonNB(BaseReader):
         if 'summary' not in [key.lower() for key in self.settings.keys()]:
             content = '<body>{0}</body>'.format(content)    # So Pelican HTMLReader works
             parser = MyHTMLParser(self.settings, filename)
-            parser.feed(content.decode("utf-8"))
+            # parser.feed(content.decode("utf-8"))
+            parser.feed(content)
             parser.close()
             content = parser.body
             metadata['summary'] = parser.summary
 
         content = fix_css(content, info)
+        # big hack to fix the ' double translated to &amp;apos;
+        content = content.replace("&amp;apos;", "'")
         return content, metadata
 
 
